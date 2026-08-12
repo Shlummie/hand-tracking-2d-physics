@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hand Physics 2D</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      overflow: hidden;
+    }
+
+    #app {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    #video-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #webcam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    #game-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    #debug-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.75);
+      padding: 15px;
+      border-radius: 8px;
+      min-width: 240px;
+      font-size: 13px;
+      z-index: 10;
+    }
+
+    #debug-panel h3 {
+      margin-bottom: 10px;
+      color: #7dd3fc;
+      font-size: 14px;
+    }
+
+    .debug-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .debug-label {
+      color: #aaa;
+    }
+
+    .debug-value {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    .gesture-state {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .gesture-idle { background: #333; color: #888; }
+    .gesture-spawn { background: #f59e0b; color: #000; }
+    .gesture-poke { background: #3b82f6; color: #fff; }
+    .gesture-grab { background: #22c55e; color: #000; }
+
+    #controls-panel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.75);
+      padding: 15px;
+      border-radius: 8px;
+      min-width: 240px;
+      font-size: 13px;
+      z-index: 10;
+    }
+
+    #controls-panel h3 {
+      margin-bottom: 12px;
+      color: #7dd3fc;
+      font-size: 14px;
+    }
+
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    .control-group label {
+      display: block;
+      margin-bottom: 4px;
+      color: #aaa;
+      font-size: 12px;
+    }
+
+    .control-group input[type="range"] {
+      width: 100%;
+      margin-bottom: 2px;
+    }
+
+    .control-group .value-display {
+      text-align: right;
+      font-size: 11px;
+      color: #7dd3fc;
+    }
+
+    .control-group select {
+      width: 100%;
+      padding: 6px;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 4px;
+    }
+
+    #camera-select-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+      z-index: 100;
+    }
+
+    #camera-select-container h2 {
+      margin-bottom: 20px;
+      color: #7dd3fc;
+    }
+
+    #camera-select-container select {
+      width: 300px;
+      padding: 10px;
+      font-size: 14px;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+
+    #camera-select-container button {
+      padding: 10px 30px;
+      font-size: 14px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #camera-select-container button:hover {
+      background: #2563eb;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    #instructions {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.75);
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 12px;
+      max-width: 280px;
+      z-index: 10;
+    }
+
+    #instructions h4 {
+      color: #7dd3fc;
+      margin-bottom: 8px;
+    }
+
+    #instructions ul {
+      list-style: none;
+      color: #ccc;
+    }
+
+    #instructions li {
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Camera Selection Modal -->
+    <div id="camera-select-container">
+      <h2>Select Camera</h2>
+      <select id="camera-select">
+        <option value="">Loading cameras...</option>
+      </select>
+      <br />
+      <button id="start-button">Start</button>
+    </div>
+
+    <!-- Video Container -->
+    <div id="video-container" class="hidden">
+      <video id="webcam" autoplay playsinline></video>
+    </div>
+
+    <!-- Game Canvas (overlay) -->
+    <canvas id="game-canvas" class="hidden"></canvas>
+
+    <!-- Debug Panel -->
+    <div id="debug-panel" class="hidden">
+      <h3>Debug Info</h3>
+      <div class="debug-row">
+        <span class="debug-label">FPS:</span>
+        <span class="debug-value" id="fps-display">0</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">Camera:</span>
+        <span class="debug-value" id="camera-name">-</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">Hand Detected:</span>
+        <span class="debug-value" id="hand-detected">No</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">Gesture:</span>
+        <span class="gesture-state gesture-idle" id="gesture-state">IDLE</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">Spheres:</span>
+        <span class="debug-value" id="sphere-count">0</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">Pinch Dist:</span>
+        <span class="debug-value" id="pinch-distance">-</span>
+      </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div id="controls-panel" class="hidden">
+      <h3>Controls</h3>
+      <div class="control-group">
+        <label>Pinch Grab Threshold</label>
+        <input type="range" id="pinch-grab-threshold" min="0.02" max="0.15" step="0.005" value="0.06" />
+        <div class="value-display" id="pinch-grab-value">0.06</div>
+      </div>
+      <div class="control-group">
+        <label>Pinch Release Threshold</label>
+        <input type="range" id="pinch-release-threshold" min="0.03" max="0.2" step="0.005" value="0.09" />
+        <div class="value-display" id="pinch-release-value">0.09</div>
+      </div>
+      <div class="control-group">
+        <label>Poke Radius</label>
+        <input type="range" id="poke-radius" min="20" max="80" step="5" value="40" />
+        <div class="value-display" id="poke-radius-value">40</div>
+      </div>
+      <div class="control-group">
+        <label>Impulse Strength</label>
+        <input type="range" id="impulse-strength" min="0.01" max="0.15" step="0.005" value="0.05" />
+        <div class="value-display" id="impulse-strength-value">0.05</div>
+      </div>
+      <div class="control-group">
+        <label>Spawn Debounce (ms)</label>
+        <input type="range" id="spawn-debounce" min="100" max="1000" step="50" value="300" />
+        <div class="value-display" id="spawn-debounce-value">300</div>
+      </div>
+      <div class="control-group">
+        <label>Ball Size</label>
+        <input type="range" id="ball-size" min="15" max="60" step="5" value="30" />
+        <div class="value-display" id="ball-size-value">30</div>
+      </div>
+    </div>
+
+    <!-- Instructions -->
+    <div id="instructions" class="hidden">
+      <h4>Gestures</h4>
+      <ul>
+        <li>4 fingers up (no thumb) = Spawn ball</li>
+        <li>Index finger pointing = Poke</li>
+        <li>Pinch near ball = Grab & Throw</li>
+      </ul>
+    </div>
+  </div>
+
+  <script type="module" src="/src/app.ts"></script>
+</body>
+</html>
